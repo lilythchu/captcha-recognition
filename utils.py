@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+
+label_from_filepath = lambda x: os.path.basename(x).split('-')[0]
+label_from_filename = lambda x: x.split('-')[0]
 
 def replace_black_pixels_with_average_color(image):
     # Define the kernel size for the neighborhood, e.g., a 3x3 area
@@ -62,6 +66,24 @@ def vertical_split(image):
         segments.append(image[:, start:width])
     return segments
 
+def split_connected_chars(segments):
+    """
+    split the largest segment into two parts if it's too wide
+    """
+    segment_wide = [seg.shape[1] for seg in segments]
+    median_wide = np.median(segment_wide)
+    # index of the widest segment
+    idx = segment_wide.index(max(segment_wide))
+    largest_seg = segments[idx]
+    if 1.5 * median_wide < largest_seg.shape[1] < 2.5 * median_wide:
+        # split the largest segment into two parts
+        half_width = largest_seg.shape[1] // 2
+        segments.pop(idx)
+        segments.insert(idx, largest_seg[:, :half_width + 3])
+        segments.insert(idx + 1, largest_seg[:, half_width - 3:])
+
+    return segments
+
 def crop_vertical_space(segment):
     gray = cv2.cvtColor(segment, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
@@ -82,6 +104,9 @@ def segmenter(filepath):
     # image = replace_black_pixels_with_average_color(image)
     segments = vertical_split(image)
     segments = [crop_vertical_space(segment) for segment in segments]
+    label = label_from_filepath(filepath)
+    if len(segments) == len(label) - 1:
+        segments = split_connected_chars(segments)
     return segments
 
 def plot_segments(filepath, segmenter):
