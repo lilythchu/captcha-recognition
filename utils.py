@@ -2,6 +2,11 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
+from PIL import Image
+import torch
+from torchvision.transforms import transforms
+from torch.utils.data import Dataset
 
 label_from_filepath = lambda x: os.path.basename(x).split('-')[0]
 label_from_filename = lambda x: x.split('-')[0]
@@ -125,3 +130,33 @@ def plot_segments(filepath, segmenter):
     plt.imshow(img)
     plt.axis('off')
     plt.show()
+
+transform = transforms.Compose([
+    transforms.Grayscale(), # 3-band to 1-band
+    transforms.Resize((28, 28)), # average size of each char image
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+char2idx = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7, 'i': 8, 'j': 9, 'k': 10, 'l': 11, 'm': 12, 'n': 13, 'o': 14, 'p': 15, 'q': 16, 'r': 17, 's': 18, 't': 19, 'u': 20, 'v': 21, 'w': 22, 'x': 23, 'y': 24, 'z': 25, '0': 26, '1': 27, '2': 28, '3': 29, '4': 30, '5': 31, '6': 32, '7': 33, '8': 34, '9': 35}
+
+class CharsDataset(Dataset):
+    '''
+    Custom PyTorch Dataset to load in individual character images segmented
+    from CAPTCHA images
+    '''
+    def __init__(self, annotations_path, root_dir):
+        self.annotations = pd.read_csv(annotations_path)
+        self.root_dir = root_dir
+
+    def __len__(self):
+        return len(self.annotations)
+
+    def __getitem__(self, index):
+        img_path = os.path.join(self.root_dir, self.annotations.iloc[index, 0])
+        img = Image.open(img_path)
+        label = self.annotations.iloc[index, 1]
+        y_label = torch.tensor(char2idx[label])
+        img = transform(img)
+
+        return (img, y_label)
